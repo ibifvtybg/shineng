@@ -212,10 +212,11 @@ def predict():
         else:
             st.write("SHAP 值的形状:", shap_values.shape)
 
+        
         importance_df = pd.DataFrame()
-        for i in range(shap_values.shape[1]):  # 遍历特征维度，shap_values.shape[1]对应特征数
-            importance = np.abs(shap_values[0, i, :]).mean()  # 取第i个特征在所有类别上的均值作为贡献度
-            importance_df[model_input_features[i]] = [importance]
+        for i in range(shap_values.shape[2]):  # 对每个类别进行计算
+            importance = np.abs(shap_values[:, :, i]).mean(axis=0)
+            importance_df[f'Class_{i}'] = importance
 
         importance_df.index = model_input_features
 
