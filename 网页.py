@@ -176,7 +176,8 @@ def predict():
         # 转换为原始标签
         predicted_class = y_pred[0]
         predicted_class_name = label_encoder.inverse_transform([predicted_class])[0]
-        probas = {label: round(prob*100, 1) for label, prob in zip(label_encoder.classes_, y_proba[0])}
+        # 修改：让预测概率保留两位小数
+        probas = {label: round(prob * 100, 2) for label, prob in zip(label_encoder.classes_, y_proba[0])}
 
         # 显示预测结果
         st.markdown(f"<div class='prediction-result'>失能风险等级：{predicted_class_name}</div>", unsafe_allow_html=True)
