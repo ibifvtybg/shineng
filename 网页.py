@@ -198,12 +198,6 @@ def predict():
         # 计算 SHAP 值
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(features_array)
-        if isinstance(shap_values, list):
-            st.write("SHAP 值列表的长度:", len(shap_values))
-            for i, value in enumerate(shap_values):
-                st.write(f"SHAP 值第 {i} 类的形状:", value.shape)
-        else:
-            st.write("SHAP 值的形状:", shap_values.shape)
 
         importance_df = pd.DataFrame()
         for i in range(shap_values.shape[2]):  # 对每个类别进行计算
