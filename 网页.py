@@ -102,7 +102,7 @@ st.markdown("""
         line-height: 1.6;
         color: #ffffff;
         background: #5DADE2;
-        padding: 20px;
+大        padding: 20px;
         border-radius: 10px;
         box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
         margin-top: 15px;
@@ -119,6 +119,11 @@ st.markdown('<div class="title">老年人失能程度预测</div>', unsafe_allow
 try:
     model = joblib.load('final_xgb_model.pkl')
     label_encoder = joblib.load('label_encoder.pkl')
+    correct_order = ['无失能', '轻度失能', '中度失能', '重度失能']
+    current_classes = list(label_encoder.classes_)
+    reorder_mapping = {class_: index for index, class_ in enumerate(correct_order)}
+    new_classes = [current_classes[reorder_mapping[class_]] for class_ in current_classes]
+    label_encoder.classes_ = np.array(new_classes)
 except Exception as e:
     st.write(f"<div style='color: red;'>Error loading model: {e}</div>", unsafe_allow_html=True)
     model = None
@@ -146,8 +151,6 @@ BMI = st.number_input("BMI（kg/m²）：", min_value=10.0, max_value=50.0, valu
 吸烟 = st.selectbox("是否吸烟：", ("否", "是"), index=0, help="吸烟状态")
 饮酒 = st.selectbox("饮酒频率：", ("不饮", "偶饮", "常饮"), index=0, help="饮酒习惯")
 高血压 = st.selectbox("是否患有高血压：", ("否", "是"), index=0, help="高血压病史")
-
-class_order = ['无失能', '轻度失能', '中度失能', '重度失能']
 
 def predict():
     try:
@@ -212,7 +215,7 @@ def predict():
         importance_df.index = model_input_features
 
         # 类别映射
-        type_mapping = {i: label for i, label in enumerate(class_order)}
+        type_mapping = {i: label for i, label in enumerate(label_encoder.classes_)}
         importance_df.columns = [type_mapping[i] for i in range(importance_df.shape[1])]
 
         # 打印importance_df的形状和内容
