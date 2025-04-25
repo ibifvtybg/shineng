@@ -14,13 +14,11 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.font_manager import FontProperties
 from xgboost import XGBClassifier
-import xgboost as xgb
+import xgbplot
 
 # 设置中文字体
 font_path = "SimHei.ttf"
 font_prop = FontProperties(fname=font_path, size=20)
-
-# 确保matplotlib使用指定的字体
 plt.rcParams['font.sans-serif'] = [font_prop.get_name()]
 plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 
@@ -116,210 +114,116 @@ st.markdown("""
 st.markdown("<div class='main'>", unsafe_allow_html=True)
 
 # 页面标题
-st.markdown('<div class="title">浦东新区监测站交通污染预测</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">老年人失能程度预测</div>', unsafe_allow_html=True)
 
-# 加载XGBoost模型
+# 加载XGBoost模型和标签编码器
 try:
-    model = joblib.load('XGBoost2020.pkl')
+    model = joblib.load('final_xgb_model.pkl')
+    label_encoder = joblib.load('label_encoder.pkl')
 except Exception as e:
     st.write(f"<div style='color: red;'>Error loading model: {e}</div>", unsafe_allow_html=True)
     model = None
 
-# 获取模型输入特征数量及顺序
-model_input_features = ["CO", "FSP", "NO2", "O3", "RSP", "SO2"]
+# 模型输入特征
+model_input_features = ['体温', '脉搏', '收缩压', '舒张压', 'BMI', '吸烟', '饮酒', '高血压']
 expected_feature_count = len(model_input_features)
 
-# 定义空气质量类别映射
-category_mapping = {
-    5: '严重污染',
-    4: '重度污染',
-    3: '中度污染',
-    2: '轻度污染',
-    1: '良',
-    0: '优'
-}
-
 # Streamlit界面设置
-st.markdown('<div class="subheader">请填写以下信息以进行交通污染预测：</div>', unsafe_allow_html=True)
+st.markdown('<div class="subheader">请填写以下健康指标以进行失能程度预测：</div>', unsafe_allow_html=True)
 
-# 一氧化碳浓度
-CO = st.number_input("一氧化碳的24小时平均浓度（毫克每立方米）：", min_value=0.0, value=0.0,
-                    help="请输入该监测站检测到的一氧化碳在24小时内的平均浓度值，单位为毫克每立方米。")
-if CO is None:
-    st.warning("一氧化碳浓度输入为空，已将其从本次预测数据中删除。")
-    CO = 0.0
+# 数值型特征输入
+体温 = st.number_input("体温（℃）：", min_value=25.0, max_value=45.0, value=36.5, 
+                     help="正常范围：36.1-37.2℃")
+脉搏 = st.number_input("脉搏（次/分钟）：", min_value=30, max_value=200, value=70, 
+                     help="正常范围：60-100次/分钟")
+收缩压 = st.number_input("收缩压（mmHg）：", min_value=50, max_value=300, value=120, 
+                        help="正常范围：90-139mmHg")
+舒张压 = st.number_input("舒张压（mmHg）：", min_value=30, max_value=200, value=80, 
+                        help="正常范围：60-89mmHg")
+BMI = st.number_input("BMI（kg/m²）：", min_value=10.0, max_value=50.0, value=22.0, 
+                    help="正常范围：18.5-23.9")
 
-# PM2.5浓度
-FSP = st.number_input("PM2.5的24小时平均浓度（毫克每立方米）：", min_value=0.0, value=0.0,
-                    help="请输入该监测站检测到的PM2.5在24小时内的平均浓度值，单位为毫克每立方米。")
-if FSP is None:
-    st.warning("PM2.5浓度输入为空，已将其从本次预测数据中删除。")
-    FSP = 0.0
-
-# 二氧化氮浓度
-NO2 = st.number_input("二氧化氮的24小时平均浓度（毫克每立方米）：", min_value=0.0, value=0.0,
-                    help="请输入该监测站检测到的二氧化氮在24小时内的可平均浓度值，单位为毫克每立方米。")
-if NO2 is None:
-    st.warning("二氧化氮浓度输入为空，已将其从本次预测数据中删除。")
-    NO2 = 0.0
-
-# 臭氧浓度
-O3 = st.number_input("臭氧的24小时平均浓度（毫克每立方米）：", min_value=0.0, value=0.0,
-                    help="请输入该监测站检测到的臭氧在24小时内的平均浓度值，单位为毫克每立方米。")
-if O3 is None:
-    st.warning("臭氧浓度输入为空，已将其从本次预测数据中删除。", min_value=0.0, value=0.0,
-                    help="请输入该监测站检测到的臭氧在24小时内的平均浓度值，单位为毫克每立方米。")
-if O3 is None:
-    st.warning("臭氧浓度输入为空，已将其从本次预测数据中删除。")
-    O3 = 0.0
-
-# PM10浓度
-RSP = st.number_input("PM10的24小时平均浓度（毫克每立方米）：", min_value=0.0, value=0.0,
-                    help="请输入该监测站检测到的PM10在24小时内的平均浓度值，单位为毫克每立方米。")
-if RSP is None:
-    st.warning("PM10浓度输入为空，已将其从本次预测数据中删除。")
-    RSP = 0.0
-
-# 二氧化硫浓度
-SO2 = st.number_input("二氧化硫的24小时平均浓度（毫克每立方米）：", min_value=0.0, value=0.0,
-                    help="请输入该监测站检测到的二氧化硫在24小时内的平均浓度值，单位为毫克每立方米。")
-if SO2 is None:
-    st.warning("二氧化硫浓度输入为空，已将其从本次预测数据中删除。")
-    SO2 = 0.0
+# 二分类特征输入
+吸烟 = st.radio("是否吸烟：", ("否", "是"), index=0, help="吸烟状态")
+饮酒 = st.radio("饮酒频率：", ("不饮", "偶饮", "常饮"), index=0, help="饮酒习惯")
+高血压 = st.radio("是否患有高血压：", ("否", "是"), index=0, help="高血压病史")
 
 def predict():
     try:
-        # 检查模型是否加载成功
         if model is None:
             st.write("<div style='color: red;'>模型加载失败，无法进行预测。</div>", unsafe_allow_html=True)
             return
 
-        # 获取用户输入并构建特征数组
+        # 构建特征字典
         user_inputs = {
-            "CO": int(CO),
-            "FSP": int(FSP),
-            "NO2": int(NO2),
-            "O3": int(O3),
-            "RSP": int(RSP),
-            "SO2": int(SO2)
+            "体温": float(体温),
+            "脉搏": float(脉搏),
+            "收缩压": float(收缩压),
+            "舒张压": float(舒张压),
+            "BMI": float(BMI),
+            "吸烟": 1 if吸烟 == "是" else 0,
+            "饮酒": 1 if饮酒 in ["偶饮", "常饮"] else 0,
+            "高血压": 1 if高血压 == "是" else 0
         }
 
+        # 生成特征数组
         feature_values = [user_inputs[feature] for feature in model_input_features]
         features_array = np.array([feature_values])
 
-        # 使用XGBoost模型进行预测
-        predicted_class = model.predict(features_array)[0]
-        predicted_proba = model.predict_proba(features_array)[0]
+        # 模型预测
+        y_pred = model.predict(features_array)
+        y_proba = model.predict_proba(features_array)
+        
+        # 转换为原始标签
+        predicted_label = label_encoder.inverse_transform(y_pred)[0]
+        probas = {label: round(prob*100, 1) for label, prob in zip(label_encoder.classes_, y_proba[0])}
 
         # 显示预测结果
-        st.markdown(f"<div class='prediction-result'>预测类别：{category_mapping[predicted_class]}</div>", unsafe_allow_html=True)
-
-        # 根据预测结果生成建议
-        probability = predicted_proba[predicted_class] * 100
-        probability_str = " ".join([f"{category_mapping[i]}: {predicted_proba[i]*100:.1f}%" for i in range(len(category_mapping))])
-        advice = {
-                    '严重污染': f"建议：根据我们的库，该日空气质量为严重污染。模型预测该日为严重污染的概率为 {probability:.1f}%。建议采取防护措施，减少户外活动。",
-                    '重度污染': f"建议：根据我们的库，该日空气质量为重度污染。模型预测该日为重度污染的概率为 {probability:.1f}%。建议减少外出，佩戴防护口罩。",
-                    '中度污染': f"建议：根据我们的库，该日空气质量为中度污染。模型预测该日为中度污染的概率为 {probability:.1f}%。敏感人群应减少户外活动。",
-                    '轻度污染': f"建议：根据我们的库，该日空气质量为轻度污染。模型预测该日为轻度污染的概率为 {probability:.1f}%。可以适当进行户外活动，但仍需注意防护。",
-                    '良': f"建议：根据我们的库，此日空气质量为良。模型预测此日空气质量为良的概率为 {probability:.1f}%。可以正常进行户外活动。",
-                    '优': f"建议：根据我们的库，该日空气质量为优。模型预测该日空气质量为优的概率为 {probability:.1f}%。空气质量良好，尽情享受户外时光。",
-        }[category_mapping[predicted_class]]
+        st.markdown(f"<div class='prediction-result'>失能风险等级：{predicted_label}</div>", unsafe_allow_html=True)
         
-        result_text = f"预测概率：{probability_str}<br>{advice}"
+        # 生成建议
+        advice = {
+            '无失能': "建议：当前健康指标均在正常范围内，继续保持健康生活方式。",
+            '轻度失能': "建议：部分指标异常，建议定期监测并咨询医生，调整生活习惯。",
+            '中度失能': "建议：多项指标异常，存在一定失能风险，需及时就医检查并制定干预方案。",
+            '重度失能': "建议：严重健康风险！请立即就医，进行全面身体检查和专业护理评估。"
+        }[predicted_label]
+        
+        prob_text = " | ".join([f"{k}：{v}%" for k, v in probas.items()])
+        result_text = f"预测概率：{prob_text}<br><br>{advice}"
         st.markdown(f"<div class='advice-text'>{result_text}</div>", unsafe_allow_html=True)
 
-        # 计算 SHAP 值
+        # 计算并展示SHAP值
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(features_array)
+        
+        # 准备特征重要性数据
+        feature_names = ['体温', '脉搏', '收缩压', '舒张压', 'BMI', '吸烟', '饮酒', '高血压']
+        shap_importance = pd.DataFrame({
+            '特征': feature_names,
+            '重要性': np.abs(shap_values[0]).mean(axis=0)
+        }).sort_values('重要性', ascending=False)
 
-        # 计算每个类别的特征贡献度
-        importance_df = pd.DataFrame()
-        for i in range(shap_values.shape[2]):  # 对每个类别进行计算
-            importance = np.abs(shap_values[:, :, i]).mean(axis=0)
-            importance_df[f'Class_{i}'] = importance
-
-        importance_df.index = model_input_features
-
-        # 类别映射
-        type_mapping = {
-             5: '严重污染',
-             4: '重度污染',
-             3: '中度污染',
-             2: '轻度污染',
-             1: '良',
-             0: '优'
-        }
-        importance_df.columns = [type_mapping[i] for i in range(importance_df.shape[1])]
-
-        # 获取指定类别的 SHAP 值贡献度
-        predicted_class_name = category_mapping[predicted_class]  # 根据预测类别获取类别名称
-        importances = importance_df[predicted_class_name]  # 提取 importance_df 中对应的类别列
-
-        # 准备绘制瀑布图的数据
-        feature_name_mapping = {
-            "CO": "一氧化碳浓度",
-            "FSP": "PM2.5浓度",
-            "NO2": "二氧化氮浓度",
-            "O3": "臭氧浓度",
-            "RSP": "PM10浓度",
-            "SO2": "二氧化硫浓度"
-        }
-        features = [feature_name_mapping[f] for f in importances.index.tolist()]  # 获取特征名称
-        contributions = importances.values  # 获取特征贡献度
-
-        # 确保瀑布图的数据是按贡献度绝对值降序排列的
-        sorted_indices = np.argsort(np.abs(contributions))[::-1]
-        features_sorted = [features[i] for i in sorted_indices]
-        contributions_sorted = contributions[sorted_indices]
-
-        # 初始化绘图
-        fig, ax = plt.subplots(figsize=(14, 8))
-
-        # 初始化累积值
-        start = 0
-        prev_contributions = [start]  # 起始值为0
-
-        # 计算每一步的累积值
-        for i in range(1, len(contributions_sorted)):
-            prev_contributions.append(prev_contributions[-1] + contributions_sorted[i - 1])
-
-        # 绘制瀑布图
-        for i in range(len(contributions_sorted)):
-            color = '#ff5050' if contributions_sorted[i] < 0 else '#66b3ff'  # 负贡献使用红色，正贡献使用蓝色
-            if i == len(contributions_sorted) - 1:
-                # 最后一个条形带箭头效果，表示最终累积值
-                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5, hatch='/')
-            else:
-                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5)
-
-            # 在每个条形上显示数值
-            plt.text(prev_contributions[i] + contributions_sorted[i] / 2, i, f"{contributions_sorted[i]:.2f}", 
-                    ha='center', va='center', fontsize=10, fontproperties=font_prop, color='black')
-            
-        # 设置图表属性
-        plt.title(f'预测类型为{predicted_class_name}时的特征贡献度瀑布图', size = 20, fontproperties=font_prop)
-        plt.xlabel('贡献度 (SHAP 值)', fontsize=20, fontproperties=font_prop)
-        plt.ylabel('特征', fontsize=20, fontproperties=font_prop)
-        plt.yticks(size = 20, fontproperties=font_prop)
-        plt.xticks(size = 20, fontproperties=font_prop)
-        plt.grid(axis='x', linestyle='--', alpha=0.7)
-
-        # 增加边距避免裁剪
-        plt.xlim(left=0, right=max(prev_contributions) + max(contributions_sorted) * 1.0)
-        fig.subplots_adjust(left=0.15, right=0.95, top=0.9, bottom=0.15)
-
+        # 绘制特征重要性图
+        plt.figure(figsize=(12, 6))
+        xgb.plot_importance(model, feature_names=feature_names, importance_type='gain', 
+                          title="特征重要性分析", height=0.8, grid=False)
         plt.tight_layout()
+        st.pyplot()
 
-        # 保存并在 Streamlit 中展示
-        plt.savefig("shap_waterfall_plot.png", bbox_inches='tight', dpi=1200)
-        st.image("shap_waterfall_plot.png")
+        # 绘制SHAP依赖图
+        plt.figure(figsize=(10, 6))
+        shap.summary_plot(shap_values[0], features_array, feature_names=feature_names, 
+                         plot_type="bar", show=False)
+        plt.title("特征贡献度分析", fontsize=16)
+        plt.tight_layout()
+        st.pyplot()
 
     except Exception as e:
-        st.write(f"<div style='color: red;'>Error in prediction: {e}</div>", unsafe_allow_html=True)
+        st.write(f"<div style='color: red;'>预测过程中出现错误：{str(e)}</div>", unsafe_allow_html=True)
 
-if st.button("预测", key="predict_button"):
+if st.button("预测", key="predict_button", help="点击进行失能风险预测"):
     predict()
 
 # 页脚
-st.markdown('<div class="footer">© 2024 All rights reserved.</div>', unsafe_allow_html=True)   
+st.markdown('<div class="footer">© 2025 老年人健康管理系统. 保留所有权利.</div>', unsafe_allow_html=True)
