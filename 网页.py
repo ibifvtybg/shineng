@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.font_manager import FontProperties
 from xgboost import XGBClassifier
-import xgbplot
 
 # 设置中文字体
 font_path = "SimHei.ttf"
@@ -161,9 +160,9 @@ def predict():
             "收缩压": float(收缩压),
             "舒张压": float(舒张压),
             "BMI": float(BMI),
-            "吸烟": 1 if吸烟 == "是" else 0,
-            "饮酒": 1 if饮酒 in ["偶饮", "常饮"] else 0,
-            "高血压": 1 if高血压 == "是" else 0
+            "吸烟": 1 if 吸烟 == "是" else 0,
+            "饮酒": 1 if 饮酒 in ["偶饮", "常饮"] else 0,
+            "高血压": 1 if 高血压 == "是" else 0
         }
 
         # 生成特征数组
@@ -175,11 +174,12 @@ def predict():
         y_proba = model.predict_proba(features_array)
         
         # 转换为原始标签
-        predicted_label = label_encoder.inverse_transform(y_pred)[0]
+        predicted_class = y_pred[0]
+        predicted_class_name = label_encoder.inverse_transform([predicted_class])[0]
         probas = {label: round(prob*100, 1) for label, prob in zip(label_encoder.classes_, y_proba[0])}
 
         # 显示预测结果
-        st.markdown(f"<div class='prediction-result'>失能风险等级：{predicted_label}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='prediction-result'>失能风险等级：{predicted_class_name}</div>", unsafe_allow_html=True)
         
         # 生成建议
         advice = {
@@ -187,37 +187,91 @@ def predict():
             '轻度失能': "建议：部分指标异常，建议定期监测并咨询医生，调整生活习惯。",
             '中度失能': "建议：多项指标异常，存在一定失能风险，需及时就医检查并制定干预方案。",
             '重度失能': "建议：严重健康风险！请立即就医，进行全面身体检查和专业护理评估。"
-        }[predicted_label]
+        }[predicted_class_name]
         
         prob_text = " | ".join([f"{k}：{v}%" for k, v in probas.items()])
         result_text = f"预测概率：{prob_text}<br><br>{advice}"
         st.markdown(f"<div class='advice-text'>{result_text}</div>", unsafe_allow_html=True)
 
-        # 计算并展示SHAP值
+        # 计算 SHAP 值
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(features_array)
-        
-        # 准备特征重要性数据
-        feature_names = ['体温', '脉搏', '收缩压', '舒张压', 'BMI', '吸烟', '饮酒', '高血压']
-        shap_importance = pd.DataFrame({
-            '特征': feature_names,
-            '重要性': np.abs(shap_values[0]).mean(axis=0)
-        }).sort_values('重要性', ascending=False)
 
-        # 绘制特征重要性图
-        plt.figure(figsize=(12, 6))
-        xgb.plot_importance(model, feature_names=feature_names, importance_type='gain', 
-                          title="特征重要性分析", height=0.8, grid=False)
-        plt.tight_layout()
-        st.pyplot()
+        # 计算每个类别的特征贡献度
+        importance_df = pd.DataFrame()
+        for i in range(len(shap_values)):  # 对每个类别进行计算
+            importance = np.abs(shap_values[i]).mean(axis=0)
+            importance_df[f'Class_{i}'] = importance
 
-        # 绘制SHAP依赖图
-        plt.figure(figsize=(10, 6))
-        shap.summary_plot(shap_values[0], features_array, feature_names=feature_names, 
-                         plot_type="bar", show=False)
-        plt.title("特征贡献度分析", fontsize=16)
+        importance_df.index = model_input_features
+
+        # 类别映射
+        type_mapping = {i: label for i, label in enumerate(label_encoder.classes_)}
+        importance_df.columns = [type_mapping[i] for i in range(importance_df.shape[1])]
+
+        # 获取指定类别的 SHAP 值贡献度
+        importances = importance_df[predicted_class_name]  # 提取 importance_df 中对应的类别列
+
+        # 准备绘制瀑布图的数据
+        feature_name_mapping = {
+            "体温": "体温",
+            "脉搏": "脉搏",
+            "收缩压": "收缩压",
+            "舒张压": "舒张压",
+            "BMI": "BMI",
+            "吸烟": "吸烟",
+            "饮酒": "饮酒",
+            "高血压": "高血压"
+        }
+        features = [feature_name_mapping[f] for f in importances.index.tolist()]  # 获取特征名称
+        contributions = importances.values  # 获取特征贡献度
+
+        # 确保瀑布图的数据是按贡献度绝对值降序排列的
+        sorted_indices = np.argsort(np.abs(contributions))[::-1]
+        features_sorted = [features[i] for i in sorted_indices]
+        contributions_sorted = contributions[sorted_indices]
+
+        # 初始化绘图
+        fig, ax = plt.subplots(figsize=(14, 8))
+
+        # 初始化累积值
+        start = 0
+        prev_contributions = [start]  # 起始值为0
+
+        # 计算每一步的累积值
+        for i in range(1, len(contributions_sorted)):
+            prev_contributions.append(prev_contributions[-1] + contributions_sorted[i - 1])
+
+        # 绘制瀑布图
+        for i in range(len(contributions_sorted)):
+            color = '#ff5050' if contributions_sorted[i] < 0 else '#66b3ff'  # 负贡献使用红色，正贡献使用蓝色
+            if i == len(contributions_sorted) - 1:
+                # 最后一个条形带箭头效果，表示最终累积值
+                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5, hatch='/')
+            else:
+                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5)
+
+            # 在每个条形上显示数值
+            plt.text(prev_contributions[i] + contributions_sorted[i] / 2, i, f"{contributions_sorted[i]:.2f}", 
+                    ha='center', va='center', fontsize=10, fontproperties=font_prop, color='black')
+            
+        # 设置图表属性
+        plt.title(f'预测类型为{predicted_class_name}时的特征贡献度瀑布图', size = 20, fontproperties=font_prop)
+        plt.xlabel('贡献度 (SHAP 值)', fontsize=20, fontproperties=font_prop)
+        plt.ylabel('特征', fontsize=20, fontproperties=font_prop)
+        plt.yticks(size = 20, fontproperties=font_prop)
+        plt.xticks(size = 20, fontproperties=font_prop)
+        plt.grid(axis='x', linestyle='--', alpha=0.7)
+
+        # 增加边距避免裁剪
+        plt.xlim(left=0, right=max(prev_contributions) + max(contributions_sorted) * 1.0)
+        fig.subplots_adjust(left=0.15, right=0.95, top=0.9, bottom=0.15)
+
         plt.tight_layout()
-        st.pyplot()
+
+        # 保存并在 Streamlit 中展示
+        plt.savefig("shap_waterfall_plot.png", bbox_inches='tight', dpi=1200)
+        st.image("shap_waterfall_plot.png")
 
     except Exception as e:
         st.write(f"<div style='color: red;'>预测过程中出现错误：{str(e)}</div>", unsafe_allow_html=True)
