@@ -201,12 +201,22 @@ def predict():
 
         # 计算 SHAP 值
         explainer = shap.TreeExplainer(model)
+        st.write("正在计算 SHAP 值...")
         shap_values = explainer.shap_values(features_array)
+        st.write("SHAP 值计算完成。")
+        st.write("SHAP 值的类型:", type(shap_values))
+        if isinstance(shap_values, list):
+            st.write("SHAP 值列表的长度:", len(shap_values))
+            for i, value in enumerate(shap_values):
+                st.write(f"SHAP 值第 {i} 类的形状:", value.shape)
+        else:
+            st.write("SHAP 值的形状:", shap_values.shape)
 
         # 计算每个类别的特征贡献度
         importance_df = pd.DataFrame()
         for i in range(len(shap_values)):  # 对每个类别进行计算
             importance = np.abs(shap_values[i]).mean(axis=0)
+            st.write(f"第 {i} 类特征贡献度的形状:", importance.shape)
             importance_df[f'Class_{i}'] = importance
 
         importance_df.index = model_input_features
