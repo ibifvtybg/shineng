@@ -178,7 +178,7 @@ def predict():
         # 转换为原始标签
         predicted_class_index = y_pred[0]
         predicted_class_name = classes[predicted_class_index]
-        probas = {label: round(prob * 100, 2) for label, prob in zip(classes, y_proba[0])}
+        probas = {label: round(float(prob) * 100, 2) for label, prob in zip(classes, y_proba[0])}
 
         # 打印信息辅助排查错误
         st.write("类别:", classes)
