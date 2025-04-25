@@ -180,10 +180,6 @@ def predict():
         predicted_class_name = classes[predicted_class_index]
         probas = {label: round(float(prob) * 100, 2) for label, prob in zip(classes, y_proba[0])}
 
-        # 打印信息辅助排查错误
-        st.write("类别:", classes)
-        st.write("预测概率字典:", probas)
-
         # 显示预测结果
         st.markdown(f"<div class='prediction-result'>失能风险等级：{predicted_class_name}</div>", unsafe_allow_html=True)
         
@@ -201,10 +197,7 @@ def predict():
 
         # 计算 SHAP 值
         explainer = shap.TreeExplainer(model)
-        st.write("正在计算 SHAP 值...")
         shap_values = explainer.shap_values(features_array)
-        st.write("SHAP 值计算完成。")
-        st.write("SHAP 值的类型:", type(shap_values))
         if isinstance(shap_values, list):
             st.write("SHAP 值列表的长度:", len(shap_values))
             for i, value in enumerate(shap_values):
@@ -212,7 +205,6 @@ def predict():
         else:
             st.write("SHAP 值的形状:", shap_values.shape)
 
-        
         importance_df = pd.DataFrame()
         for i in range(shap_values.shape[2]):  # 对每个类别进行计算
             importance = np.abs(shap_values[:, :, i]).mean(axis=0)
@@ -223,10 +215,6 @@ def predict():
         # 类别映射
         type_mapping = {i: label for i, label in enumerate(classes)}
         importance_df.columns = [type_mapping[i] for i in range(importance_df.shape[1])]
-
-        # 打印importance_df的形状和内容
-        st.write("importance_df的形状:", importance_df.shape)
-        st.write("importance_df的内容:\n", importance_df)
 
         # 获取指定类别的 SHAP 值贡献度
         importances = importance_df[predicted_class_name]  # 提取 importance_df 中对应的类别列
