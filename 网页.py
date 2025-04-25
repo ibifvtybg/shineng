@@ -213,9 +213,9 @@ def predict():
             st.write("SHAP 值的形状:", shap_values.shape)
 
         importance_df = pd.DataFrame()
-        for i in range(len(shap_values[0].T)):  # 遍历特征维度
-            importance = np.abs(shap_values[0][:, i]).mean(axis=0)  # 计算每个特征对所有样本在第i类的平均贡献度
-            importance_df[classes[i]] = importance
+        for i in range(shap_values.shape[1]):  # 遍历特征维度，shap_values.shape[1]对应特征数
+            importance = np.abs(shap_values[0, i, :]).mean()  # 取第i个特征在所有类别上的均值作为贡献度
+            importance_df[model_input_features[i]] = [importance]
 
         importance_df.index = model_input_features
 
