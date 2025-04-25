@@ -147,6 +147,8 @@ BMI = st.number_input("BMI（kg/m²）：", min_value=10.0, max_value=50.0, valu
 饮酒 = st.selectbox("饮酒频率：", ("不饮", "偶饮", "常饮"), index=0, help="饮酒习惯")
 高血压 = st.selectbox("是否患有高血压：", ("否", "是"), index=0, help="高血压病史")
 
+class_order = ['无失能', '轻度失能', '中度失能', '重度失能']
+
 def predict():
     try:
         if model is None:
@@ -178,6 +180,10 @@ def predict():
         predicted_class_name = label_encoder.inverse_transform([predicted_class])[0]
         probas = {label: round(prob * 100, 2) for label, prob in zip(label_encoder.classes_, y_proba[0])}
 
+        # 打印信息辅助排查错误
+        st.write("标签编码器中的类别:", label_encoder.classes_)
+        st.write("预测概率字典:", probas)
+
         # 显示预测结果
         st.markdown(f"<div class='prediction-result'>失能风险等级：{predicted_class_name}</div>", unsafe_allow_html=True)
         
@@ -204,20 +210,17 @@ def predict():
             importance_df[f'Class_{i}'] = importance
 
         importance_df.index = model_input_features
-        # 修正类别映射，确保与标签编码器中的类别一致
-        type_mapping = {i: label for i, label in enumerate(label_encoder.classes_)}
-        importance_df = importance_df.rename(columns=type_mapping)
+
+        # 类别映射
+        type_mapping = {i: label for i, label in enumerate(class_order)}
+        importance_df.columns = [type_mapping[i] for i in range(importance_df.shape[1])]
 
         # 打印importance_df的形状和内容
         st.write("importance_df的形状:", importance_df.shape)
         st.write("importance_df的内容:\n", importance_df)
 
         # 获取指定类别的 SHAP 值贡献度
-        try:
-            importances = importance_df[predicted_class_name]  # 提取 importance_df 中对应的类别列
-        except KeyError as e:
-            st.write(f"<div style='color: red;'>在importance_df中找不到对应的类别: {e}</div>", unsafe_allow_html=True)
-            return
+        importances = importance_df[predicted_class_name]  # 提取 importance_df 中对应的类别列
 
         # 准备绘制瀑布图的数据
         feature_name_mapping = {
