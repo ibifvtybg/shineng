@@ -143,9 +143,9 @@ BMI = st.number_input("BMI（kg/m²）：", min_value=10.0, max_value=50.0, valu
                     help="正常范围：18.5-23.9")
 
 # 二分类特征输入
-吸烟 = st.radio("是否吸烟：", ("否", "是"), index=0, help="吸烟状态")
-饮酒 = st.radio("饮酒频率：", ("不饮", "偶饮", "常饮"), index=0, help="饮酒习惯")
-高血压 = st.radio("是否患有高血压：", ("否", "是"), index=0, help="高血压病史")
+吸烟 = st.selectbox("是否吸烟：", ("否", "是"), index=0, help="吸烟状态")
+饮酒 = st.selectbox("饮酒频率：", ("不饮", "偶饮", "常饮"), index=0, help="饮酒习惯")
+高血压 = st.selectbox("是否患有高血压：", ("否", "是"), index=0, help="高血压病史")
 
 def predict():
     try:
@@ -176,7 +176,6 @@ def predict():
         # 转换为原始标签
         predicted_class = y_pred[0]
         predicted_class_name = label_encoder.inverse_transform([predicted_class])[0]
-        # 修改：让预测概率保留两位小数
         probas = {label: round(prob * 100, 2) for label, prob in zip(label_encoder.classes_, y_proba[0])}
 
         # 显示预测结果
