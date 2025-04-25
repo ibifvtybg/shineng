@@ -178,6 +178,10 @@ def predict():
         predicted_class_name = label_encoder.inverse_transform([predicted_class])[0]
         probas = {label: round(prob * 100, 2) for label, prob in zip(label_encoder.classes_, y_proba[0])}
 
+        # 打印信息辅助排查错误
+        st.write("标签编码器中的类别:", label_encoder.classes_)
+        st.write("预测概率字典:", probas)
+
         # 显示预测结果
         st.markdown(f"<div class='prediction-result'>失能风险等级：{predicted_class_name}</div>", unsafe_allow_html=True)
         
@@ -208,6 +212,10 @@ def predict():
         # 类别映射
         type_mapping = {i: label for i, label in enumerate(label_encoder.classes_)}
         importance_df.columns = [type_mapping[i] for i in range(importance_df.shape[1])]
+
+        # 打印importance_df的形状和内容
+        st.write("importance_df的形状:", importance_df.shape)
+        st.write("importance_df的内容:\n", importance_df)
 
         # 获取指定类别的 SHAP 值贡献度
         importances = importance_df[predicted_class_name]  # 提取 importance_df 中对应的类别列
